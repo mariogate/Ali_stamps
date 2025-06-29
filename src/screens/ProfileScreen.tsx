@@ -1,196 +1,288 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image, SafeAreaView } from 'react-native';
-import { Text, List, useTheme, ActivityIndicator, Snackbar } from 'react-native-paper';
+import { Text, Card, Button, Avatar, Divider, useTheme, Snackbar } from 'react-native-paper';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MainTabParamList, RootStackParamList } from '../types/navigation';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
+import { mockApi, IUser } from '../data/staticData';
 import AppHeader from '../components/AppHeader';
-
-interface IUserProfile {
-  name: string;
-  email: string;
-  stats: {
-    totalCards: number;
-    totalStamps: number;
-    points: number;
-  };
-}
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Account'>,
   NativeStackScreenProps<RootStackParamList>
 >;
 
-const StatDisplay = ({ iconName, value, label, color }: { iconName: any, value: number, label: string, color: string }) => (
-  <View style={styles.statItem}>
-    <View style={[styles.statIconContainer, {backgroundColor: `${color}30`}]}>
-        <Ionicons name={iconName} size={30} color={color} />
-        <View style={styles.statValueContainer}>
-            <Text style={[styles.statValue, { color }]}>{value}</Text>
-        </View>
-    </View>
-    <Text style={styles.statLabel}>{label}</Text>
-  </View>
-);
-
 export default function ProfileScreen({ navigation }: Props) {
   const theme = useTheme();
-  const { signOut, token } = useAuth();
-  const [profile, setProfile] = useState<IUserProfile | null>(null);
+  const { signOut, user } = useAuth();
+  const [profileData, setProfileData] = useState<IUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  const fetchProfile = useCallback(async () => {
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
+  const fetchProfileData = async () => {
     try {
-      const res = await fetch('http://10.0.2.2:3001/api/auth/profile', {
-        headers: { 'Authorization': `Bearer ${token || ''}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to fetch profile');
-      setProfile(data);
-    } catch (err) {
-      console.error(err);
+      setLoading(true);
+      const data = await mockApi.getUser();
+      setProfileData(data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      setSnackbarMessage('Failed to load profile data');
+      setSnackbarVisible(true);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  };
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  const handleLogout = () => {
+    signOut();
+  };
 
-  if (loading) return <ActivityIndicator style={{ flex: 1, justifyContent: 'center' }} />;
+  const handleMenuItem = (item: string) => {
+    switch (item) {
+      case 'Account Settings':
+        navigation.navigate('AccountSettings');
+        break;
+      case 'Privacy Policy':
+        // Handle privacy policy
+        setSnackbarMessage('Privacy Policy - Coming Soon');
+        setSnackbarVisible(true);
+        break;
+      case 'Terms of Use':
+        // Handle terms of use
+        setSnackbarMessage('Terms of Use - Coming Soon');
+        setSnackbarVisible(true);
+        break;
+      case 'Support':
+        // Handle support
+        setSnackbarMessage('Support - Coming Soon');
+        setSnackbarVisible(true);
+        break;
+      case 'Feedback':
+        // Handle feedback
+        setSnackbarMessage('Feedback - Coming Soon');
+        setSnackbarVisible(true);
+        break;
+      case 'Logout':
+        handleLogout();
+        break;
+    }
+  };
 
+  const styles = getStyles(theme);
+
+  if (loading) {
     return (
-    <SafeAreaView style={styles.safeArea}>
-      <AppHeader leftIcon="arrow-back" onLeftPress={() => navigation.goBack()} rightIcon="location-outline" />
-      <View style={styles.container}>
-        <ScrollView>
-          <Text style={styles.sectionTitle}>Usage</Text>
-          <View style={styles.statsContainer}>
-              <StatDisplay iconName="add" value={profile?.stats?.totalStamps ?? 0} label="Total Stamps" color="#3498db"/>
-              <StatDisplay iconName="add" value={profile?.stats?.totalCards ?? 0} label="Total Cards" color="#2c3e50"/>
-              <StatDisplay iconName="add" value={profile?.stats?.points ?? 0} label="My Points" color="#e74c3c"/>
-          </View>
+      <SafeAreaView style={styles.container}>
+        <AppHeader />
+        <View style={styles.loadingContainer}>
+          <Text>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-          <List.Section>
-            <InfoRow icon="mail-outline" text={profile?.email ?? 'name@email.com'} actionIcon="pencil-outline" />
-            <InfoRow icon="person-outline" text="Username" actionIcon="lock-closed-outline" />
-            <InfoRow icon="shield-checkmark-outline" text="**********" actionIcon="pencil-outline" />
-            <InfoRow icon="call-outline" text="+20" actionIcon="pencil-outline" />
-            <InfoRow icon="calendar-outline" text="dd/mm/yyyy" actionIcon="lock-closed-outline" />
-          </List.Section>
+  return (
+    <SafeAreaView style={styles.container}>
+      <AppHeader />
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Profile Header */}
+        <Card style={styles.profileCard}>
+          <Card.Content style={styles.profileContent}>
+            <Avatar.Text 
+              size={80} 
+              label={profileData?.name?.charAt(0) || 'U'} 
+              style={styles.avatar}
+            />
+            <View style={styles.profileInfo}>
+              <Text style={styles.name}>{profileData?.name || 'User'}</Text>
+              <Text style={styles.email}>{profileData?.email || 'user@example.com'}</Text>
+              <View style={styles.pointsContainer}>
+                <MaterialCommunityIcons name="star" size={20} color="#FFD700" />
+                <Text style={styles.points}>{profileData?.points || 0} Points</Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
 
-          <List.Section style={{marginTop: 20}}>
-            <ActionRow icon="people-outline" text="Refer a friend" />
-            <ActionRow icon="headset-outline" text="Support" />
-            <ActionRow icon="log-out-outline" text="Sign Out" onPress={signOut} />
-          </List.Section>
-        </ScrollView>
+        {/* Menu Items */}
+        <View style={styles.menuContainer}>
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => handleMenuItem('Account Settings')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="settings-outline" size={24} color="#666" />
+              <Text style={styles.menuItemText}>Account Settings</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <Divider />
+
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => handleMenuItem('Privacy Policy')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="shield-outline" size={24} color="#666" />
+              <Text style={styles.menuItemText}>Privacy Policy</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <Divider />
+
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => handleMenuItem('Terms of Use')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="document-text-outline" size={24} color="#666" />
+              <Text style={styles.menuItemText}>Terms of Use</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <Divider />
+
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => handleMenuItem('Support')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="help-circle-outline" size={24} color="#666" />
+              <Text style={styles.menuItemText}>Support</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <Divider />
+
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => handleMenuItem('Feedback')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="chatbubble-outline" size={24} color="#666" />
+              <Text style={styles.menuItemText}>Feedback</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <Divider />
+
+          <TouchableOpacity 
+            style={styles.menuItem} 
+            onPress={() => handleMenuItem('Logout')}
+          >
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="log-out-outline" size={24} color="#E91E63" />
+              <Text style={[styles.menuItemText, { color: '#E91E63' }]}>Logout</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#E91E63" />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
         duration={3000}
+        style={styles.snackbar}
       >
-          Feature coming soon!
+        {snackbarMessage}
       </Snackbar>
-      </View>
     </SafeAreaView>
   );
 }
 
-const InfoRow = ({ icon, text, actionIcon }: { icon: any, text: string, actionIcon: any }) => (
-    <View style={styles.infoRow}>
-        <Ionicons name={icon} size={24} color="#2c3e50" style={styles.infoIcon} />
-        <Text style={styles.infoText}>{text}</Text>
-        <TouchableOpacity>
-            <Ionicons name={actionIcon} size={24} color="grey" />
-        </TouchableOpacity>
-    </View>
-  );
-
-const ActionRow = ({ icon, text, onPress }: { icon: any, text: string, onPress?: () => void }) => (
-    <TouchableOpacity style={styles.infoRow} onPress={onPress}>
-        <Ionicons name={icon} size={24} color="#2c3e50" style={styles.infoIcon} />
-        <Text style={styles.infoText}>{text}</Text>
-        <Ionicons name="chevron-forward-outline" size={24} color="grey" />
-    </TouchableOpacity>
-);
-
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#F5F5F5',
   },
-  header: {
-    backgroundColor: '#0A0D28',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-  },
-  logo: {
-    height: 40,
-    width: 150,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    marginTop: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statIconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    transform: [{ rotate: '45deg' }],
+  },
+  scrollView: {
+    flex: 1,
+  },
+  profileCard: {
+    margin: 16,
+    elevation: 2,
+    borderRadius: 12,
+  },
+  profileContent: {
+    padding: 20,
+  },
+  profileInfo: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  avatar: {
+    alignSelf: 'center',
+    backgroundColor: '#081D43',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  email: {
+    fontSize: 16,
+    color: '#666',
     marginBottom: 8,
   },
-  statValueContainer: {
-      position: 'absolute',
-      transform: [{ rotate: '-45deg' }],
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: 'grey',
-  },
-  infoRow: {
+  pointsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#FFF3CD',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  infoIcon: {
-    marginRight: 20,
-  },
-  infoText: {
-    flex: 1,
+  points: {
     fontSize: 16,
+    fontWeight: 'bold',
+    color: '#856404',
+    marginLeft: 4,
   },
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#0A0D28',
-  }
+  menuContainer: {
+    backgroundColor: 'white',
+    margin: 16,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 12,
+  },
+  snackbar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
 }); 

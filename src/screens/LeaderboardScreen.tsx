@@ -1,158 +1,195 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, SafeAreaView, Image } from 'react-native';
-import { Text, useTheme, ActivityIndicator, Card, Avatar } from 'react-native-paper';
-import { useFocusEffect, CompositeScreenProps } from '@react-navigation/native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, FlatList, SafeAreaView } from 'react-native';
+import { Text, Card, Avatar, useTheme, ActivityIndicator } from 'react-native-paper';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MainTabParamList, RootStackParamList } from '../types/navigation';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { mockApi, ILeaderboardEntry } from '../data/staticData';
 import AppHeader from '../components/AppHeader';
-import StampsLogo from '../../assets/Design/STLR logos and icons/logo.png';
-
-interface LeaderboardUser {
-  _id: string;
-  name: string;
-  totalStamps: number;
-}
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Leaderboard'>,
   NativeStackScreenProps<RootStackParamList>
 >;
 
-const LeaderboardScreen = ({ navigation }: Props) => {
+export default function LeaderboardScreen({ navigation }: Props) {
   const theme = useTheme();
-  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
+  const [leaderboard, setLeaderboard] = useState<ILeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchLeaderboard = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch('http://10.0.2.2:3001/api/auth/leaderboard');
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch leaderboard');
-      }
-
-      setLeaderboard(data);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load leaderboard';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [fetchLeaderboard]);
+  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchLeaderboard();
-    }, [fetchLeaderboard])
-  );
+  const fetchLeaderboard = async () => {
+    try {
+      setLoading(true);
+      const data = await mockApi.getLeaderboard();
+      setLeaderboard(data);
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchLeaderboard();
-  }, [fetchLeaderboard]);
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return <MaterialCommunityIcons name="trophy" size={24} color="#FFD700" />;
+      case 2:
+        return <MaterialCommunityIcons name="trophy" size={24} color="#C0C0C0" />;
+      case 3:
+        return <MaterialCommunityIcons name="trophy" size={24} color="#CD7F32" />;
+      default:
+        return <Text style={styles.rankText}>{rank}</Text>;
+    }
+  };
 
-  const renderItem = ({ item, index }: { item: LeaderboardUser; index: number }) => (
-    <Card style={styles.card}>
+  const renderLeaderboardItem = ({ item, index }: { item: ILeaderboardEntry; index: number }) => (
+    <Card style={styles.leaderboardCard}>
       <Card.Content style={styles.cardContent}>
-        <Text style={styles.rank}>{index + 1}</Text>
-        <Avatar.Text size={40} label={item.name.charAt(0)} style={styles.avatar} />
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.stamps}>{item.totalStamps}</Text>
+        <View style={styles.rankContainer}>
+          {getRankIcon(item.rank)}
+        </View>
+        
+        <Avatar.Text 
+          size={50} 
+          label={item.name.charAt(0)} 
+          style={styles.avatar}
+        />
+        
+        <View style={styles.userInfo}>
+          <Text style={styles.userName}>{item.name}</Text>
+          <Text style={styles.userPoints}>{item.points} points</Text>
+        </View>
+        
+        <View style={styles.pointsContainer}>
+          <MaterialCommunityIcons name="star" size={20} color="#FFD700" />
+          <Text style={styles.pointsText}>{item.points}</Text>
+        </View>
       </Card.Content>
     </Card>
   );
 
-  if (loading && !refreshing) {
-    return <ActivityIndicator style={styles.loader} />;
-  }
+  const styles = getStyles(theme);
 
-  if (error) {
-    return <Text style={styles.errorText}>{error}</Text>;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <AppHeader />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#081D43" />
+          <Text style={styles.loadingText}>Loading leaderboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <AppHeader leftIcon="arrow-back" onLeftPress={() => navigation.goBack()} rightIcon="location-outline" />
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={styles.container}>
+      <AppHeader />
+      <View style={styles.header}>
         <Text style={styles.title}>Leaderboard</Text>
-        <FlatList
-          data={leaderboard}
-          renderItem={renderItem}
-          keyExtractor={(item) => item._id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
+        <Text style={styles.subtitle}>Top performers this month</Text>
       </View>
+      
+      <FlatList
+        data={leaderboard}
+        renderItem={renderLeaderboardItem}
+        keyExtractor={(item) => item._id}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#081D43',
-  },
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#F5F5F5',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  loader: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  errorText: {
-    flex: 1,
-    textAlign: 'center',
-    marginTop: 20,
-    color: 'red',
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
   },
-  card: {
+  header: {
+    padding: 20,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+  },
+  listContainer: {
+    padding: 16,
+  },
+  leaderboardCard: {
     marginBottom: 12,
     elevation: 2,
+    borderRadius: 12,
   },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 16,
   },
-  rank: {
+  rankContainer: {
+    width: 40,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  rankText: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginRight: 16,
-    minWidth: 25,
-    textAlign: 'center',
+    color: '#666',
   },
   avatar: {
+    backgroundColor: '#081D43',
     marginRight: 16,
   },
-  name: {
+  userInfo: {
     flex: 1,
-    fontSize: 16,
   },
-  stamps: {
+  userName: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
   },
-});
-
-export default LeaderboardScreen; 
+  userPoints: {
+    fontSize: 14,
+    color: '#666',
+  },
+  pointsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pointsText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#856404',
+    marginLeft: 4,
+  },
+}); 

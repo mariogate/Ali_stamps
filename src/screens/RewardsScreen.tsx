@@ -1,304 +1,272 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { Text, Card, Button, useTheme, Snackbar } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, FlatList, SafeAreaView, TouchableOpacity } from 'react-native';
+import { Text, Card, Button, useTheme, ActivityIndicator, Snackbar, ProgressBar } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { useAuth } from '../contexts/AuthContext';
-import { getMerchantLogo } from '../utils/merchantLogos';
-import { getPromotionalImage } from '../utils/offerImages';
-import { useFocusEffect } from '@react-navigation/native';
-
-interface IReward {
-  _id: string;
-  merchantId: {
-    _id: string;
-    name: string;
-    logo?: string;
-  };
-  name: string;
-  description: string;
-  pointsRequired: number;
-  imageUrl?: string;
-}
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { mockApi, IReward, IUserStats } from '../data/staticData';
+import AppHeader from '../components/AppHeader';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Rewards'>;
 
 export default function RewardsScreen({ navigation }: Props) {
   const theme = useTheme();
-  const { token, user, signIn } = useAuth(); // Get token, user, and signIn from context
   const [rewards, setRewards] = useState<IReward[]>([]);
+  const [userStats, setUserStats] = useState<IUserStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [redeeming, setRedeeming] = useState(false); // Added state for redemption loading
-  const [error, setError] = useState<string | null>(null);
+  const [redeeming, setRedeeming] = useState<string | null>(null);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [points, setPoints] = useState(0);
 
-  const fetchPoints = useCallback(async () => {
-    try {
-      const res = await fetch('http://10.0.2.2:3001/api/customer/stats', {
-        headers: { Authorization: `Bearer ${token || ''}` }
-      });
-      const data = await res.json();
-      if (res.ok && typeof data === 'object' && data !== null) {
-        setPoints(data.points ?? 0);
-      } else {
-        setPoints(0);
-      }
-    } catch (err) {
-      setPoints(0);
-    }
-  }, [token]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchPoints();
-    }, [fetchPoints])
-  );
-
-  const fetchRewards = useCallback(async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      setError(null);
-      const res = await fetch('http://10.0.2.2:3001/api/rewards', {
-        headers: {
-          'Authorization': `Bearer ${token || ''}`
-        }
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch rewards');
-      }
-
-      setRewards(data);
-    } catch (err) {
-      console.error(err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load rewards';
-      setError(errorMessage);
-      setSnackbarMessage(errorMessage);
+      const [rewardsData, statsData] = await Promise.all([
+        mockApi.getRewards(),
+        mockApi.getUserStats()
+      ]);
+      setRewards(rewardsData);
+      setUserStats(statsData);
+    } catch (error) {
+      console.error('Error fetching rewards data:', error);
+      setSnackbarMessage('Failed to load rewards');
       setSnackbarVisible(true);
     } finally {
       setLoading(false);
     }
-  }, [token]);
-
-  useEffect(() => {
-    fetchRewards();
-  }, [fetchRewards]);
+  };
 
   const handleRedeemReward = async (rewardId: string) => {
-    if (!user) return; // Cannot redeem if user is not logged in (shouldn't happen with auth)
-
-    setRedeeming(true); // Start redemption loading
     try {
-      console.log('Attempting to redeem reward:', rewardId);
-      const res = await fetch('http://10.0.2.2:3001/api/rewards/redeem', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || ''}`
-        },
-        body: JSON.stringify({ rewardId })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to redeem reward');
-      }
-
-      // Update user's points in the AuthContext
-      // Assuming backend returns the updated user object or at least the new points
-      if (data.userPoints !== undefined) {
-          // Create a new user object with updated points
-          const updatedUser = { ...user, points: data.userPoints };
-          // Use signIn to update the user in the context. 
-          // Note: This might require adjusting your signIn to only update user data if token is not changing.
-          // For simplicity here, we'll assume signIn can handle just user data update if token is null/same.
-          // A better approach might be a separate updateUserPoints function in AuthContext.
-          signIn(token || '', updatedUser); // Update context
-          console.log('User points updated in context. New points:', data.userPoints);
-      } else {
-           // If backend doesn't return updated points, refetch profile or rely on subsequent data fetches
-           console.warn('Backend did not return updated user points.');
-           // Optionally refetch user data here
-           // fetchProfile(); // If you have a fetchProfile function in AuthContext or here
-      }
-
-      setSnackbarMessage('Reward redeemed successfully!');
+      setRedeeming(rewardId);
+      const result = await mockApi.redeemReward(rewardId);
+      setSnackbarMessage(result.message);
       setSnackbarVisible(true);
-
-      // Optionally refetch rewards after redemption if redemption affects availability
-      // fetchRewards();
-
-    } catch (err) {
-      console.error('Redemption error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to redeem reward';
-      setSnackbarMessage(`Redemption failed: ${errorMessage}`);
+      // Refresh data after redemption
+      fetchData();
+    } catch (error) {
+      console.error('Error redeeming reward:', error);
+      setSnackbarMessage('Failed to redeem reward');
       setSnackbarVisible(true);
     } finally {
-      setRedeeming(false); // End redemption loading
+      setRedeeming(null);
     }
   };
 
+  const renderRewardItem = ({ item }: { item: IReward }) => (
+    <Card style={styles.rewardCard}>
+      <Card.Content style={styles.cardContent}>
+        <View style={styles.rewardInfo}>
+          <MaterialCommunityIcons 
+            name="gift" 
+            size={40} 
+            color={item.available ? '#4CAF50' : '#9E9E9E'} 
+          />
+          <View style={styles.rewardDetails}>
+            <Text style={styles.rewardName}>{item.name}</Text>
+            <Text style={styles.rewardDescription}>{item.description}</Text>
+            <View style={styles.pointsRequired}>
+              <MaterialCommunityIcons name="star" size={16} color="#FFD700" />
+              <Text style={styles.pointsText}>{item.pointsRequired} points required</Text>
+            </View>
+          </View>
+        </View>
+        
+        <Button
+          mode="contained"
+          onPress={() => handleRedeemReward(item._id)}
+          loading={redeeming === item._id}
+          disabled={!item.available || redeeming !== null}
+          style={[
+            styles.redeemButton,
+            { backgroundColor: item.available ? '#4CAF50' : '#9E9E9E' }
+          ]}
+        >
+          {item.available ? 'Redeem' : 'Unavailable'}
+        </Button>
+      </Card.Content>
+    </Card>
+  );
+
+  const styles = getStyles(theme);
+
   if (loading) {
     return (
-      <View style={styles.centeredContainer}>
-        <ActivityIndicator animating={true} color={theme.colors.primary} size="large" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centeredContainer}>
-        <Text style={{ color: theme.colors.error }}>{error}</Text>
-        <Button onPress={fetchRewards} style={{ marginTop: 16 }}>Retry</Button>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <AppHeader />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#081D43" />
+          <Text style={styles.loadingText}>Loading rewards...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Card style={styles.pointsCard}>
-        <Card.Content style={styles.pointsCardContent}>
-          <Text variant="titleMedium">Your Points</Text>
-          <Text variant="headlineMedium" style={styles.pointsText}>
-            {points}
-          </Text>
-        </Card.Content>
-      </Card>
-
-      <Text variant="titleLarge" style={styles.rewardsTitle}>Available Rewards</Text>
-
-      {rewards.length > 0 ? (
-        rewards.map((reward) => (
-          <Card key={reward._id} style={styles.rewardCard}>
-            {reward.imageUrl && (
-              <Card.Cover 
-                source={getPromotionalImage(reward.imageUrl)} 
-                style={styles.rewardImage} 
-              />
-            )}
-            <Card.Content>
-              <View style={styles.rewardHeader}>
-                 {/* Placeholder for Merchant Logo if available */}
-                 {/* {reward.merchantId?.logo && (
-                   <Image source={{ uri: reward.merchantId.logo }} style={styles.merchantLogo} />
-                 )} */}
-                <View style={styles.rewardTitleContainer}>
-                   <Text variant="titleMedium">{reward.name}</Text>
-                   <Text variant="bodySmall">from {reward.merchantId.name}</Text>
-                </View>
+    <SafeAreaView style={styles.container}>
+      <AppHeader />
+      
+      {/* Stats Section */}
+      {userStats && (
+        <Card style={styles.statsCard}>
+          <Card.Content>
+            <Text style={styles.statsTitle}>Your Progress</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statItem}>
+                <MaterialCommunityIcons name="cards" size={24} color="#2196F3" />
+                <Text style={styles.statValue}>{userStats.totalCards}</Text>
+                <Text style={styles.statLabel}>Total Cards</Text>
               </View>
-              <Text variant="bodyMedium" style={styles.rewardDescription}>
-                {reward.description}
-              </Text>
-              <Text variant="bodySmall" style={styles.pointsRequiredText}>
-                Points Required: {reward.pointsRequired}
-              </Text>
-              <Button
-                mode="contained"
-                onPress={() => handleRedeemReward(reward._id)}
-                disabled={(user?.points ?? 0) < reward.pointsRequired || redeeming}
-                loading={redeeming}
-                style={styles.redeemButton}
-              >
-                Redeem
-              </Button>
-            </Card.Content>
-          </Card>
-        ))
-      ) : (
-        <View style={styles.noRewardsContainer}>
-           <Text variant="bodyMedium" style={styles.noRewardsText}>No rewards available at the moment.</Text>
-        </View>
+              <View style={styles.statItem}>
+                <MaterialCommunityIcons name="sticker-check" size={24} color="#4CAF50" />
+                <Text style={styles.statValue}>{userStats.totalStamps}</Text>
+                <Text style={styles.statLabel}>Total Stamps</Text>
+              </View>
+              <View style={styles.statItem}>
+                <MaterialCommunityIcons name="star" size={24} color="#FFD700" />
+                <Text style={styles.statValue}>{userStats.totalPoints}</Text>
+                <Text style={styles.statLabel}>Points</Text>
+              </View>
+              <View style={styles.statItem}>
+                <MaterialCommunityIcons name="trophy" size={24} color="#FF9800" />
+                <Text style={styles.statValue}>{userStats.completedCards}</Text>
+                <Text style={styles.statLabel}>Completed</Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
       )}
+
+      {/* Rewards Section */}
+      <View style={styles.rewardsSection}>
+        <Text style={styles.sectionTitle}>Available Rewards</Text>
+        <FlatList
+          data={rewards}
+          renderItem={renderRewardItem}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.rewardsList}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
 
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
         duration={3000}
+        style={styles.snackbar}
       >
         {snackbarMessage}
       </Snackbar>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
-    padding: 16,
   },
-  centeredContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pointsCard: {
-    marginBottom: 16,
-    backgroundColor: '#E3F2FD', // Light blue background
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  statsCard: {
+    margin: 16,
     elevation: 2,
+    borderRadius: 12,
   },
-   pointsCardContent: {
-     flexDirection: 'row',
-     justifyContent: 'space-between',
-     alignItems: 'center',
-   },
-  pointsText: {
-    color: '#1976D2', // Darker blue color
+  statsTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
   },
-  rewardsTitle: {
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  rewardsSection: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginHorizontal: 16,
     marginBottom: 12,
-    fontWeight: 'bold',
+  },
+  rewardsList: {
+    padding: 16,
   },
   rewardCard: {
-    marginBottom: 16,
+    marginBottom: 12,
     elevation: 2,
+    borderRadius: 12,
   },
-  rewardHeader: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     marginBottom: 8,
+  cardContent: {
+    padding: 16,
   },
-  merchantLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+  rewardInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  rewardTitleContainer: {
-     flex: 1,
+  rewardDetails: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  rewardName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
   },
   rewardDescription: {
+    fontSize: 14,
+    color: '#666',
     marginBottom: 8,
-    opacity: 0.8,
   },
-  pointsRequiredText: {
-    marginBottom: 12,
-    fontWeight: 'bold',
-    color: '#E91E63', // Pink color for points required
+  pointsRequired: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pointsText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 4,
   },
   redeemButton: {
-    marginTop: 8,
+    borderRadius: 8,
   },
-   noRewardsContainer: {
-     padding: 24,
-     alignItems: 'center',
-   },
-   noRewardsText: {
-     opacity: 0.6,
-     fontStyle: 'italic',
-   },
-   rewardImage: {
-     height: 150,
-     width: '100%',
-     borderTopLeftRadius: 8,
-     borderTopRightRadius: 8,
-   },
+  snackbar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
 }); 

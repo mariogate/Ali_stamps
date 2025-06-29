@@ -35,3 +35,21 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Design files (large files that shouldn't be in repo)
+*.indd
+*.xd
+*.ai
+*.psd
+*.sketch
+*.fig
+*.zip
+*.rar
+*.7z
+
+# Large media files
+*.mov
+*.mp4
+*.avi
+*.mkv
+*.wmv

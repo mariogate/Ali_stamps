@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getMerchantLogo } from '../utils/merchantLogos';
 import AppHeader from '../components/AppHeader';
 import StampsLogo from '../../assets/Design/STLR logos and icons/logo.png';
+import { mockApi, ILoyaltyCard } from '../data/staticData';
 
 // Define interfaces for our data structures
 interface ILoyaltyProgramDetails {
@@ -25,18 +26,6 @@ interface IMerchantDetails {
   logo?: string;
   category: string;
   loyaltyProgram: ILoyaltyProgramDetails;
-}
-
-interface ILoyaltyCard {
-  _id: string;
-  merchantId: IMerchantDetails;
-  merchantName: string;
-  merchantLogo?: string;
-  merchantCategory: string;
-  stamps: number;
-  totalStamps: number;
-  lastStamp?: string;
-  createdAt: string;
 }
 
 type Props = CompositeScreenProps<
@@ -69,34 +58,14 @@ const WalletScreen = ({ navigation }: Props) => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching loyalty cards with token:', token);
-      const res = await fetch('http://10.0.2.2:3001/api/customer/loyalty-cards', {
-        headers: {
-          'Authorization': `Bearer ${token || ''}`
-        }
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch loyalty cards');
-      }
-
-      console.log('Loyalty cards API response:', JSON.stringify(data, null, 2));
+      console.log('Fetching loyalty cards with static data');
+      const data = await mockApi.getLoyaltyCards();
+      console.log('Loyalty cards static data:', JSON.stringify(data, null, 2));
       
-      // Filter out any cards that might have null or invalid merchant data
-      const validCards = (data as any[]).filter((card): card is ILoyaltyCard => 
-        card && card.merchantId && typeof card.merchantId === 'object' && card.merchantId.name
-      );
-
-      if (validCards.length !== data.length) {
-        console.warn(`Filtered out ${data.length - validCards.length} invalid cards`);
-      }
-
-      const cardsWithAddButton = [...validCards, { isAddButton: true }];
-      setCards(validCards);
+      const cardsWithAddButton = [...data, { isAddButton: true }];
+      setCards(data);
       // We apply search filter here again in case there was a search query before refresh
-      const filtered = validCards.filter(card =>
+      const filtered = data.filter(card =>
         card.merchantId.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredCards([...filtered, { isAddButton: true }]);
@@ -111,7 +80,7 @@ const WalletScreen = ({ navigation }: Props) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, searchQuery]);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchCards();

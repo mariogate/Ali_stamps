@@ -12,6 +12,7 @@ import { getMerchantLogo } from '../utils/merchantLogos';
 import { getOfferImage } from '../utils/offerImages';
 import AppHeader from '../components/AppHeader';
 import BurgerMenuModal from '../components/BurgerMenuModal';
+import { mockApi, IMerchant, ILoyaltyCard, IOffer } from '../data/staticData';
 
 // Import local assets
 import StampsLogo from '../../assets/Design/STLR logos and icons/logo.png';
@@ -37,38 +38,6 @@ const { width } = Dimensions.get('window');
 const MERCHANT_ITEM_WIDTH = width * 0.4; // Approximately 40% of screen width
 const CARD_ITEM_WIDTH = width * 0.6; // Approximately 60% of screen width
 const OFFER_ITEM_WIDTH = width * 0.8; // Approximately 80% of screen width
-
-interface IMerchant {
-  _id: string;
-  name: string;
-  logo?: string;
-  description?: string;
-  loyaltyProgram: {
-    stampsRequired: number;
-    reward: string;
-  };
-  stampsRequired?: number;
-}
-
-interface ILoyaltyCard {
-  _id: string;
-  merchantId: IMerchant;
-  stamps: number;
-  stampsRequired?: number;
-}
-
-interface IOffer {
-  _id: string;
-  merchantId: {
-    _id: string;
-    name: string;
-    logo?: string;
-  } | null; // Allow merchantId to be null
-  title: string;
-  description?: string;
-  imageUrl?: string;
-  validUntil?: string; // Date string
-}
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -97,19 +66,8 @@ export default function HomeScreen({ navigation }: Props) {
     try {
       setLoadingMerchants(true);
       setErrorMerchants(null);
-      console.log('Fetching merchants with token:', token); // Debugging line
-      const res = await fetch('http://10.0.2.2:3001/api/customer/merchants', {
-        headers: {
-          'Authorization': `Bearer ${token || ''}` // Include the auth token
-        }
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch merchants');
-      }
-
+      console.log('Fetching merchants with static data');
+      const data = await mockApi.getMerchants();
       setMerchants(data);
     } catch (err) {
       console.error('Error fetching merchants:', err);
@@ -118,47 +76,16 @@ export default function HomeScreen({ navigation }: Props) {
     } finally {
       setLoadingMerchants(false);
     }
-  }, [token]);
+  }, []);
 
   const fetchLoyaltyCards = useCallback(async () => { // Function to fetch loyalty cards
     try {
       setLoadingCards(true);
       setErrorCards(null);
-      console.log('Fetching loyalty cards with token:', token); // Debugging line
-      const res = await fetch('http://10.0.2.2:3001/api/customer/loyalty-cards', {
-        headers: {
-          'Authorization': `Bearer ${token || ''}`
-        }
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch loyalty cards');
-      }
-
-      console.log('Loyalty cards API response:', JSON.stringify(data, null, 2));
-      
-      // Filter out any cards that might have null or invalid merchant data
-      const validCards = data.filter((card: any) => 
-        card && card.merchantId && typeof card.merchantId === 'object' && card.merchantId.name
-      );
-
-      if (validCards.length !== data.length) {
-        console.warn(`Filtered out ${data.length - validCards.length} invalid cards`);
-      }
-      
-      // Debug each card
-      validCards.forEach((card: any, index: number) => {
-        console.log(`Card ${index}:`, {
-          id: card._id,
-          merchantId: card.merchantId,
-          merchantIdType: typeof card.merchantId,
-          isPopulated: typeof card.merchantId === 'object' && card.merchantId !== null
-        });
-      });
-
-      setLoyaltyCards(validCards);
+      console.log('Fetching loyalty cards with static data');
+      const data = await mockApi.getLoyaltyCards();
+      console.log('Loyalty cards static data:', JSON.stringify(data, null, 2));
+      setLoyaltyCards(data);
     } catch (err) {
       console.error('Error fetching loyalty cards:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load loyalty cards';
@@ -166,23 +93,15 @@ export default function HomeScreen({ navigation }: Props) {
     } finally {
       setLoadingCards(false);
     }
-  }, [token]); // Depend on token
+  }, []); // No dependencies needed for static data
 
   const fetchOffers = useCallback(async () => { // Function to fetch offers
     try {
       setLoadingOffers(true);
       setErrorOffers(null);
-      // Offers are public, no auth token needed
-      const res = await fetch('http://10.0.2.2:3001/api/offers');
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || 'Failed to fetch offers');
-      }
-
-      const validOffers = data.filter((offer: IOffer) => offer.merchantId && offer.merchantId.name);
-      setOffers(validOffers);
+      console.log('Fetching offers with static data');
+      const data = await mockApi.getOffers();
+      setOffers(data);
     } catch (err) {
       console.error('Error fetching offers:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to load offers';
@@ -190,7 +109,7 @@ export default function HomeScreen({ navigation }: Props) {
     } finally {
       setLoadingOffers(false);
     }
-  }, []); // No dependencies, as offers are public
+  }, []); // No dependencies needed for static data
 
   // Use focus effect to refresh loyalty cards when screen comes into focus
   useFocusEffect(

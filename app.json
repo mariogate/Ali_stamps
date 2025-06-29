@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "mobile",
-    "slug": "mobile",
+    "slug": "stamps2-mobile-nfc-test",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,10 +20,23 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.mariogate.stamps2mobilenfctest",
+      "permissions": [
+        "android.permission.NFC"
+      ],
+      "features": [
+        "android.hardware.nfc"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8a3ad7c7-1221-4803-9c94-36dd3b2e04cc"
+      }
+    },
+    "plugins": []
   }
 }
